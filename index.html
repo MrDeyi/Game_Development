@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <link rel="stylesheet" href="./style.css" />
+    <title>Document</title>
+  </head>
+  <body>
+    <div class="scene"></div>
+    <script src="./three.min.js"></script>
+  <!--  <script src="./GLTFLoader.js"></script>-->
+
+    <script type="module">
+
+      import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.121.1/build/three.module.js';
+      
+     
+import { OrbitControls } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/loaders/GLTFLoader.js';
+     
+
+//Variables for setup
+
+let container;
+let camera;
+let renderer;
+let scene;
+let avatar,scupl,plant;
+let mesh;
+let keyboard={}
+let player={height:1.8,speed:0.2, turnSpeed:Math.PI*0.02 }
+let meshFloor;
+var USE_WIREFRAME = false;
+let  ambientLight, light;
+var crate,crate1,crate2,crate3,crate4, crateTexture, crateNormalMap, crateBumpMap, crateBox;
+
+// An object to hold all the things needed for our loading screen
+var loadingScreen = {
+	scene: new THREE.Scene(),
+	camera: new THREE.PerspectiveCamera(90, 1280/720, 0.1, 100),
+	box: new THREE.Mesh(
+		new THREE.BoxGeometry(0.5,0.5,0.5),
+		new THREE.MeshBasicMaterial({ color:0x4444ff })
+	)
+};
+var loadingManager = null;
+var RESOURCES_LOADED = false;
+
+
+	
+	// Set up the loading screen's scene.
+	// It can be treated just like our main scene.
+	loadingScreen.box.position.set(0,0,5);
+	loadingScreen.camera.lookAt(loadingScreen.box.position);
+	loadingScreen.scene.add(loadingScreen.box);
+	
+	// Create a loading manager to set RESOURCES_LOADED when appropriate.
+	// Pass loadingManager to all resource loaders.
+	loadingManager = new THREE.LoadingManager();
+	
+	loadingManager.onProgress = function(item, loaded, total){
+		console.log(item, loaded, total);
+	};
+	
+	loadingManager.onLoad = function(){
+		console.log("loaded all resources");
+		RESOURCES_LOADED = true;
+	};
+
+
+function init() {
+  container = document.querySelector(".scene");
+
+  //Create scene
+  scene = new THREE.Scene();
+
+  const fov = 45;
+  const aspect = container.clientWidth / container.clientHeight;
+  const near = 0.1;
+  const far = 10000;
+
+  //Camera setup
+  camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+//camera.position.set(0, player.height, -5);
+//camera.lookAt(new THREE.Vector3(0,player.height,0))
+camera.position.y = 5;
+camera.position.z = 5;
+camera.position.x = 0;
+
+  const ambient = new THREE.AmbientLight(0x404040, 2);
+  //scene.add(ambient);
+
+  const light1 = new THREE.DirectionalLight(0xffffff, 2);
+  light1.position.set(100, 100, 100);
+  //scene.add(light1);
+
+  //Renderer
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  // CONTROLS
+const orbitControls = new OrbitControls(camera, renderer.domElement);
+orbitControls.enableDamping = true
+orbitControls.minDistance = 5
+orbitControls.maxDistance = 15
+orbitControls.enablePan = false
+orbitControls.maxPolarAngle = Math.PI / 2 - 0.05
+orbitControls.update();
+
+  //model
+  mesh = new THREE.Mesh(
+     new THREE.BoxGeometry(1,1,1),
+     new THREE.MeshPhongMaterial({color:0xff4444, wireframe:USE_WIREFRAME, antialias: true})
+  );
+  mesh.position.y += 1;
+  mesh.position.z = -3;
+	// The cube can have shadows cast onto it, and it can cast shadows
+	mesh.receiveShadow = true;
+	mesh.castShadow = true;
+	scene.add(mesh);
+
+  //floor
+  meshFloor=new THREE.Mesh(
+    new THREE.PlaneGeometry(15,15,15,15),
+  // MeshBasicMaterial does not react to lighting, so we replace with MeshPhongMaterial
+  new THREE.MeshPhongMaterial({color:0xffffff, wireframe:USE_WIREFRAME})
+  // See threejs.org/examples/ for other material types
+);
+meshFloor.rotation.x -= Math.PI / 2;
+// Floor can have shadows cast onto it
+meshFloor.receiveShadow = true;
+scene.add(meshFloor);
+
+	
+
+	// LIGHTS
+  function lights()
+  {
+    ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+    scene.add(ambientLight);
+    
+    light = new THREE.PointLight(0xffffff, 0.8, 18);
+    light.position.set(-3,6,-3);
+    light.castShadow = true;
+    // Will not light anything closer than 0.1 units or further than 25 units
+    light.shadow.camera.near = 0.1;
+    light.shadow.camera.far = 25;
+    scene.add(light);
+  
+  }
+  lights(); //add lights to scene
+  
+  // Texture Loading
+  function textureLoading()
+  {
+    var textureLoader = new THREE.TextureLoader(loadingManager);
+    crateTexture = textureLoader.load("crate0/crate0_diffuse.png");
+    crateBumpMap = textureLoader.load("crate0/crate0_bump.png");
+    crateNormalMap = textureLoader.load("crate0/crate0_normal.png");   
+  }
+  textureLoading();
+	// Create mesh with these textures
+
+
+  
+
+  function createCrateObject()  
+  {
+    crate = new THREE.Mesh(
+		new THREE.BoxGeometry(3,3,3),
+		new THREE.MeshPhongMaterial({
+			color:0xffffff,
+			
+			map:crateTexture,
+			bumpMap:crateBumpMap,
+			normalMap:crateNormalMap
+		})
+	);
+	scene.add(crate);
+  crate.position.set(2.5, 3/2, 2.5);
+	crate.receiveShadow = true;
+	crate.castShadow = true;
+  }
+
+	function createCrates(){
+    crate1 = new THREE.Mesh(
+      new THREE.BoxGeometry(3,3,3),
+      new THREE.MeshPhongMaterial({
+        color:0xffffff,
+        antialias: true,
+        map:crateTexture,
+        bumpMap:crateBumpMap,
+        normalMap:crateNormalMap
+      })
+    );
+    crateBox = new THREE.BoundingBoxHelper( crate1 );
+    crateBox.update(crate1);
+    scene.add(crate1);
+    crate1.position.set(-2.5, 3/2, 2.5);
+    crate1.receiveShadow = true;
+    crate1.castShadow = true;
+    
+  
+    //two at the back
+    crate2 = new THREE.Mesh(
+      new THREE.BoxGeometry(3,3,3),
+      new THREE.MeshPhongMaterial({
+        color:0xffffff,
+        antialias: true,
+        map:crateTexture,
+        bumpMap:crateBumpMap,
+        normalMap:crateNormalMap
+      })
+    );
+    scene.add(crate2);
+    crate2.position.set(2.5, 3/2, -3);
+    crate2.receiveShadow = true;
+    crate2.castShadow = true;
+  
+    crate3 = new THREE.Mesh(
+      new THREE.BoxGeometry(3,3,3),
+      new THREE.MeshPhongMaterial({
+        color:0xffffff,
+        antialias: true,
+        map:crateTexture,
+        bumpMap:crateBumpMap,
+        normalMap:crateNormalMap
+      })
+    );
+    scene.add(crate3);
+    crate3.position.set(-2.5, 3/2, -3);
+    crate3.receiveShadow = true;
+    crate3.castShadow = true;  
+  }
+
+  function enableShadows(){
+    renderer.shadowMap.enabled = true;
+	  renderer.shadowMap.type = THREE.BasicShadowMap;
+  }
+
+  function loadAvatar(){
+    let loader = new GLTFLoader();
+    loader.load("./house/scene.gltf", function(gltf) {
+    scene.add(gltf.scene);
+    avatar = gltf.scene.children[0];
+    animate();
+  });
+  }
+  
+  createCrateObject(); //instantiate objects
+  createCrates(); //create the objects
+  enableShadows();// Enable Shadows in the Renderer  
+	loadAvatar(); //loading avatar
+
+    
+ 
+
+  container.appendChild(renderer.domElement);
+
+  let sculpture = new GLTFLoader(loadingManager);
+  sculpture.load("./Sculpture/scene.gltf", function(gltf) {
+    scene.add(gltf.scene);
+    scupl = gltf.scene.children[0];
+    scupl.position.set(-1 ,0,4);
+    scupl.traverse(function(node){
+      if(node instanceof THREE.Mesh){
+        node.castShadow=true;
+        node.receiveShadow=true;
+      }
+    })
+
+    animate();
+  }); 
+}
+
+function animate() {
+ // This block runs while resources are loading.
+ if(RESOURCES_LOADED == false ){
+  requestAnimationFrame(animate);
+  
+  loadingScreen.box.position.x -= 0.05;
+  if( loadingScreen.box.position.x < -10 ) loadingScreen.box.position.x = 10;
+  loadingScreen.box.position.y = Math.sin(loadingScreen.box.position.x);
+  
+  renderer.render(loadingScreen.scene, loadingScreen.camera);
+  return; // Stop the function here.
+ }
+ // avatar.rotation.x += 0.005;
+ requestAnimationFrame(animate);
+ mesh.rotation.x +=0.01;
+ mesh.rotation.y +=0.02;
+
+
+// Keyboard movement inputs
+if(keyboard[87]){ // W key
+  camera.position.x -= Math.sin(camera.rotation.y) * player.speed;
+  camera.position.z -= -Math.cos(camera.rotation.y) * player.speed;
+}
+if(keyboard[83]){ // S key
+  camera.position.x += Math.sin(camera.rotation.y) * player.speed;
+  camera.position.z += -Math.cos(camera.rotation.y) * player.speed;
+}
+if(keyboard[65]){ // A key
+  // Redirect motion by 90 degrees
+  camera.position.x += Math.sin(camera.rotation.y + Math.PI/2) * player.speed;
+  camera.position.z += -Math.cos(camera.rotation.y + Math.PI/2) * player.speed;
+}
+if(keyboard[68]){ // D key
+  camera.position.x += Math.sin(camera.rotation.y - Math.PI/2) * player.speed;
+  camera.position.z += -Math.cos(camera.rotation.y - Math.PI/2) * player.speed;
+
+}
+// Keyboard turn inputs
+if(keyboard[90]){ // left arrow key
+  camera.rotation.y -= player.turnSpeed;
+}
+if(keyboard[67]){ // right arrow key
+  camera.rotation.y += player.turnSpeed;
+}
+//Move object
+var currPos_X, currPos_Y;
+var priorPos_x, priorPos_y;
+if(keyboard[39]){
+  mesh.position.x -=0.1;
+  avatar.position.x -=0.1;
+  currPos_X=avatar.position.x;
+  priorPos_x=currPos_X+0.1;
+}
+
+if(keyboard[37]){
+  mesh.position.x +=0.1;
+  avatar.position.x +=0.1;
+  currPos_X=avatar.position.x;
+  priorPos_x=currPos_X-0.1;
+}
+else if(keyboard[40]){
+  mesh.position.z -=0.1;
+  avatar.position.z -=0.1;
+  currPos_Y=avatar.position.z;
+  priorPos_y=currPos_Y+0.1;
+}
+else if(keyboard[38]){
+  mesh.position.z +=0.1;
+  avatar.position.z +=0.1;
+  currPos_Y=avatar.position.z;
+  priorPos_y=currPos_Y-0.1;
+}
+else{ 
+  if(keyboard[17])
+{
+  priorPos_x=currPos_X;
+  priorPos_y=priorPos_y;
+  mesh.position.x=avatar.position.x;
+  mesh.position.z=avatar.position.z;
+  if(mesh.position.z==avatar.position.z)
+  {
+    window.alert("You've been caught!");
+  }
+}
+} 
+ renderer.render(scene, camera);
+}
+init();
+
+function onWindowResize() {
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(container.clientWidth, container.clientHeight);
+}
+function keyDown(event){
+  keyboard[event.keyCode]=true;
+}
+
+function keyUp(event){
+  keyboard[event.keyCode]=false;
+}
+
+
+window.addEventListener("resize", onWindowResize);
+window.addEventListener('keydown',keyDown);
+window.addEventListener('keyup',keyUp);
+
+      
+      </script>
+   <!---- <script src="./app.js"></script>-->
+  </body>
+</html>
